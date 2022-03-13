@@ -1,5 +1,7 @@
 package eu.yozozchomutova;
 
+import eu.yozozchomutova.ui.WindowBar;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -14,109 +16,72 @@ public class Generator {
     public static BufferedImage resultImage;
     public static BufferedImage propertiesImage;
 
-    private static JDialog progressDialog;
-    private static JLabel progressText;
-    private static JProgressBar progressBar;
-
     private static double[][] mudWeight;
     private static double[][] waterWeight;
 
+    private static boolean[][] blueBaseConnectedTiles;
+
     public static ArrayList<Building> buildings = new ArrayList<>();
-
-    private static void createProgressDialog() {
-        progressDialog = new JDialog(Main.frame, "Please wait...");
-        progressDialog.setBounds(400, 400, 500, 220);
-        progressDialog.getContentPane().setBackground(Color.BLACK);
-        progressDialog.setLayout(null);
-
-        progressText = new JLabel("...");
-        progressText.setForeground(Color.WHITE);
-        progressText.setBounds(10, 10, 500, 70);
-        progressText.setVerticalAlignment(SwingConstants.TOP);
-        progressText.setFont(new Font("arial", Font.PLAIN, 20));
-        progressDialog.add(progressText);
-
-        progressBar = new JProgressBar(JProgressBar.HORIZONTAL, 0, 100);
-        progressBar.setBackground(Color.WHITE);
-        progressBar.setForeground(Color.RED);
-        progressBar.setBounds(0, 150, 500, 70);
-        progressDialog.add(progressBar);
-
-        progressDialog.setVisible(true);
-    }
 
     public static void Generate(double size, int additionalGreenHeadquartersCount, int whiteBuildingCount, int biomeIndex) {
         //New Thread
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                createProgressDialog();
+        Thread t = new Thread(() -> {
+            Main.doingTaskDLG.showDialog("Generating");
 
-                //Clear
-                buildings.clear();
+            //Clear
+            buildings.clear();
 
-                resultImage = new BufferedImage(Main.renderImgWidth, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
-                srfImage = new BufferedImage(Main.renderImgWidth, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
-                propertiesImage = new BufferedImage(300, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
+            resultImage = new BufferedImage(Main.renderImgWidth, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
+            srfImage = new BufferedImage(Main.renderImgWidth, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
 
-                //Generate
-                GenerateSurface(size);
-                GameProperties.GenerateProperties();
+            //Generate
+            GenerateSurface(size);
+            GameProperties.GenerateProperties();
 
-                //Render
-                Color[][] resultPixels = new Color[Main.renderImgWidth][Main.renderImgHeight];
-                Color[][] srfPixels = new Color[Main.renderImgWidth][Main.renderImgHeight];
-                Color[][] propertiesPixels = new Color[propertiesImage.getWidth()][propertiesImage.getHeight()];
+            //Render
+            Color[][] resultPixels = new Color[Main.renderImgWidth][Main.renderImgHeight];
+            Color[][] srfPixels = new Color[Main.renderImgWidth][Main.renderImgHeight];
 
-                GenerateSurfacePixels(srfPixels, biomeIndex);
+            GenerateSurfacePixels(srfPixels, biomeIndex);
 
-                //copy srf pixels to result pixels
-                for (int y = 0; y < resultPixels[0].length; y++) {
-                    for (int x = 0; x < resultPixels.length; x++) {
-                        resultPixels[x][y] = srfPixels[x][y];
-                    }
+            //copy srf pixels to result pixels
+            for (int y = 0; y < resultPixels[0].length; y++) {
+                for (int x = 0; x < resultPixels.length; x++) {
+                    resultPixels[x][y] = srfPixels[x][y];
                 }
-
-                GenerateBuildings(resultPixels, additionalGreenHeadquartersCount, whiteBuildingCount);
-                GenerateBuildingIcons(resultPixels);
-
-                Render(resultImage, resultPixels);
-                Render(srfImage, srfPixels);
-
-                //Properties right-side tab
-                GeneratePropertiesBackground(propertiesPixels);
-                Render(propertiesImage, propertiesPixels);
-                GenerateProperties();
-
-                Main.surfaceRenderer.setIcon(new ImageIcon(resultImage));
-                Main.playerPropertiesRenderer.setBounds(Main.frame.getWidth()-propertiesImage.getWidth(), 0, propertiesImage.getWidth(), Main.frame.getHeight());
-                Main.playerPropertiesRenderer.setIcon(new ImageIcon(propertiesImage));
-
-                //Done
-                progressDialog.setVisible(false);
             }
+
+            GenerateBuildings(resultPixels, additionalGreenHeadquartersCount, whiteBuildingCount);
+            GenerateBuildingIcons(resultPixels);
+
+            Render(resultImage, resultPixels);
+            Render(srfImage, srfPixels);
+
+            //Properties right-side tab
+            RegenerateRightTabProperties();
+
+            Main.surfaceRenderer.setIcon(new ImageIcon(resultImage));
+
+            //Done
+            Main.doingTaskDLG.setVisible(false);
         });
 
         t.start();
     }
 
     public static void GenerateSurface(double size) {
+        Main.doingTaskDLG.updateProgress("Randomizing weights", 10, 100);
+
+        MapManager.generateNewTiles(Main.renderImgWidth32, Main.renderImgHeight32);
+        MapManager.Tile[][] tiles = MapManager.tiles;
+
         //Generate noise
         OpenSimplexNoise noise = new OpenSimplexNoise();
         Random rand = new Random();
-        double seedX = rand.nextInt(1000000);
-        double seedY = rand.nextInt(1000000);
+        double seedX = rand.nextInt(100000000);
+        double seedY = rand.nextInt(100000000);
 
-        /*mudWeight = new double[Main.renderImgWidth][Main.renderImgHeight];
-        for (int y = 0; y < Main.renderImgHeight; y++)
-        {
-            for (int x = 0; x < Main.renderImgWidth; x++)
-            {
-                double value = noise.eval(x / 900.0 + seed, y / 900.0 + seed, 0.0);
-                mudWeight[x][y] = value;
-            }
-        }*/
-
+        //Height map
         waterWeight = new double[Main.renderImgWidth][Main.renderImgHeight];
         for (int y = 0; y < Main.renderImgHeight; y++)
         {
@@ -127,9 +92,26 @@ public class Generator {
             }
         }
 
-        progressText.setText("Generating tiles");
-        MapManager.generateNewTiles(Main.renderImgWidth32, Main.renderImgHeight32);
+        seedX = rand.nextInt(100000000);
+        seedY = rand.nextInt(100000000);
 
+        //Player/Enemy/Neutral zones
+        double[][] zoneWeights = new double[Main.renderImgWidth32][Main.renderImgHeight32];
+        for (int y = 0; y < zoneWeights[0].length; y++)
+        {
+            for (int x = 0; x < zoneWeights.length; x++)
+            {
+                double value = noise.eval(x / 30.0 + seedX, y / 30.0 + seedY, 0.0);
+
+                if (value < -0.2f) {
+                    tiles[x][y].team = Building.TeamColor.BLUE;
+                } else if (value > 0.2f) {
+                    tiles[x][y].team = Building.TeamColor.GREEN;
+                }
+            }
+        }
+
+        //Ground
         for (int y = 0; y < Main.renderImgHeight32; y++)
         {
             for (int x = 0; x < Main.renderImgWidth32; x++)
@@ -151,7 +133,7 @@ public class Generator {
         int x = 1, y = 1;
 
         //1st Blue headquarter
-        progressText.setText("Blue headquarters");
+        Main.doingTaskDLG.updateProgress("Generating headquarters", 10, 100);
         do {
             y++;
 
@@ -163,9 +145,21 @@ public class Generator {
 
         setPixels(x*32, y*32, b.baseWidth, b.baseHeight, b.basePixels, resultPixels);
         buildings.add(new Building(Building.BuildingType.HEADQUARTERS, Building.TeamColor.BLUE, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0, 100f, true, x, y));
+        GenerateTurrets(resultPixels, Building.BuildingType.ANTIAIR, Building.TeamColor.BLUE, x, y, 3, 5);
+        GenerateTurrets(resultPixels, Building.BuildingType.DEFRAGMENTATOR, Building.TeamColor.BLUE, x, y, 3, 2);
+        GenerateTurrets(resultPixels, Building.BuildingType.PLASMA, Building.TeamColor.BLUE, x, y, 3, 2);
+
+        blueBaseConnectedTiles = PathFiller.startPathing(x, y);
+
+        for (int yy = 0; yy < tiles[0].length; yy++) {
+            for (int xx = 0; xx < tiles.length; xx++) {
+                if (blueBaseConnectedTiles[xx][yy]) {
+                    fillColorPixels(xx*32, yy*32, 32, 32, new Color(225, 255, 0, 50), resultPixels);
+                }
+            }
+        }
 
         //1st Green headquarter
-        progressText.setText("Green headquarters");
         x = Main.renderImgWidth32-4;
         y = Main.renderImgHeight32-4;
 
@@ -180,6 +174,9 @@ public class Generator {
 
         setPixels(x*32, y*32, g.baseWidth, g.baseHeight, g.basePixels, resultPixels);
         buildings.add(new Building(Building.BuildingType.HEADQUARTERS, Building.TeamColor.GREEN, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0, 100f, true, x, y));
+        GenerateTurrets(resultPixels, Building.BuildingType.ANTIAIR, Building.TeamColor.GREEN, x, y, 3, 5);
+        GenerateTurrets(resultPixels, Building.BuildingType.DEFRAGMENTATOR, Building.TeamColor.GREEN, x, y, 3, 2);
+        GenerateTurrets(resultPixels, Building.BuildingType.PLASMA, Building.TeamColor.GREEN, x, y, 3, 2);
 
         //Next Green headquarters
         for (int i = 0; i < additionalGreenHeadquartersCount; i++) {
@@ -190,82 +187,68 @@ public class Generator {
 
             setPixels(x * 32, y * 32, g.baseWidth, g.baseHeight, g.basePixels, resultPixels);
             buildings.add(new Building(Building.BuildingType.HEADQUARTERS, Building.TeamColor.GREEN, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100f, true, x, y));
+            GenerateTurrets(resultPixels, Building.BuildingType.ANTIAIR, Building.TeamColor.GREEN, x, y, 3, 5);
+            GenerateTurrets(resultPixels, Building.BuildingType.DEFRAGMENTATOR, Building.TeamColor.GREEN, x, y, 3, 2);
+            GenerateTurrets(resultPixels, Building.BuildingType.PLASMA, Building.TeamColor.GREEN, x, y, 3, 2);
         }
 
         //Generate random white buildings
         for (int i = 0; i < whiteBuildingCount; i++) {
-            progressText.setText("Generating building: " + i);
-
-            int[] buildingPixels;
-            int buildingWidth, buildingHeight;
+            Main.doingTaskDLG.updateProgress("Generating buildings", i, whiteBuildingCount);
 
             Building.BuildingType buildingType;
-            int randomBuildingTypeID = Main.random.nextInt(Building.BuildingType.values().length-1)+1;
+            int randomBuildingTypeID = Main.random.nextInt(8)+1;
             buildingType = Building.BuildingType.values()[randomBuildingTypeID];
 
-            switch (buildingType) {
-                case HEADQUARTERS: //Base
-                    buildingPixels = w.basePixels;
-                    buildingWidth = w.baseWidth;
-                    buildingHeight = w.baseHeight;
-                    break;
-                case SMALL_FACTORY: //Factory light
-                    buildingPixels = w.FlightPixels;
-                    buildingWidth = w.FlightWidth;
-                    buildingHeight = w.FlightHeight;
-                    break;
-                case MEDIUM_FACTORY: //Factory medium
-                    buildingPixels = w.FmediumPixels;
-                    buildingWidth = w.FmediumWidth;
-                    buildingHeight = w.FmediumHeight;
-                    break;
-                case BIG_FACTORY: //Factory big
-                    buildingPixels = w.FheavyPixels;
-                    buildingWidth = w.FheavyWidth;
-                    buildingHeight = w.FheavyHeight;
-                    break;
-                case ROBOT_FACTORY: //Factory robot
-                    buildingPixels = w.FrobotPixels;
-                    buildingWidth = w.FrobotWidth;
-                    buildingHeight = w.FrobotHeight;
-                    break;
-                case LABORATORY: //Lab
-                    buildingPixels = w.labPixels;
-                    buildingWidth = w.labWidth;
-                    buildingHeight = w.labHeight;
-                    break;
-                case GOLD_MINE: //Mine
-                    buildingPixels = w.minePixels;
-                    buildingWidth = w.mineWidth;
-                    buildingHeight = w.mineHeight;
-                    break;
-                case RADAR: //Radar
-                    buildingPixels = w.radarPixels;
-                    buildingWidth = w.radarWidth;
-                    buildingHeight = w.radarHeight;
-                    break;
-                case POWER_PLANT: //Wind
-                    buildingPixels = w.windPixels;
-                    buildingWidth = w.windWidth;
-                    buildingHeight = w.windHeight;
-                    break;
-                default:
-                    buildingPixels = new int[0];
-                    buildingWidth = 0;
-                    buildingHeight = 0;
-                    break;
-            }
-
             x = Main.random.nextInt(Main.renderImgWidth32-4);
-            y = Main.random.nextInt(Main.renderImgHeight32-4);
+            y = Main.random.nextInt(Main.renderImgHeight32-4-1)+1;
 
             if (CollidesWithSomething(tiles, x, y, 4, 4)) {
                 i--;
             } else {
-                setPixels(x * 32, y * 32, buildingWidth, buildingHeight, buildingPixels, resultPixels);
-                buildings.add(new Building(buildingType, Building.TeamColor.WHITE, 100f, false, x, y));
+                Building.TeamColor team = tiles[x][y].team;
+                int[] buildingPixels = buildingType.getBuildingPixels(team);
+
+                if (buildingPixels != null) {
+                    if (team != Building.TeamColor.WHITE) {
+                        GenerateTurrets(resultPixels, Building.BuildingType.ANTIAIR, team, x, y, 2, 3);
+                        GenerateTurrets(resultPixels, Building.BuildingType.PLASMA, team, x, y, 2, 2);
+                    }
+
+                    setPixels(x * 32, y * 32, buildingType.width, buildingType.height, buildingPixels, resultPixels);
+                    buildings.add(new Building(buildingType, team, 100f, false, x, y));
+                }
             }
         }
+    }
+
+    public static void GenerateTurrets(Color[][] resultPixels, Building.BuildingType turret, Building.TeamColor team, int x, int y, int rangeGenerate, int count) {
+        for (int i = 0; i < count; i++) {
+            GenerateTurret(resultPixels, turret, team, x, y, rangeGenerate);
+        }
+    }
+
+    public static void GenerateTurret(Color[][] resultPixels, Building.BuildingType turret, Building.TeamColor team, int x, int y, int rangeGenerate) {
+        int randX = 0, randY = 0;
+
+        do {
+            int minX = x - rangeGenerate;
+            int minY = y - rangeGenerate;
+
+            minX = Math.max(minX, 0);
+            minY = Math.max(minY, 1);
+
+            randX = Main.random.nextInt(rangeGenerate + 3 + rangeGenerate) + minX;
+            randY = Main.random.nextInt(rangeGenerate + 3 + rangeGenerate) + minY;
+
+            randX = Math.min(Main.renderImgWidth32, randX);
+            randY = Math.min(Main.renderImgHeight32, randY);
+        } while (CollidesWithSomething(MapManager.tiles, randX, randY, 1, 1));
+
+        int[] buildingPixels = turret.getBuildingPixels(team);
+
+        setPixels(randX * 32, randY * 32, turret.width, turret.height, buildingPixels, resultPixels);
+        buildings.add(new Building(turret, team, 100f, false, randX, randY));
     }
 
     public static void GenerateBuildingIcons(Color[][] resultPixels) {
@@ -284,8 +267,20 @@ public class Generator {
         }
     }
 
+    public static void RegenerateRightTabProperties() {
+        propertiesImage = new BufferedImage(300, Main.renderImgHeight, BufferedImage.TYPE_INT_RGB);
+        Color[][] propertiesPixels = new Color[propertiesImage.getWidth()][propertiesImage.getHeight()];
+
+        GeneratePropertiesBackground(propertiesPixels);
+        Render(propertiesImage, propertiesPixels);
+        GenerateProperties();
+
+        Main.playerPropertiesRenderer.setBounds(Main.frame.getWidth()-propertiesImage.getWidth(), WindowBar.BAR_HEIGHT, propertiesImage.getWidth(), Main.frame.getHeight());
+        Main.playerPropertiesRenderer.setIcon(new ImageIcon(propertiesImage));
+    }
+
     public static void GeneratePropertiesBackground(Color[][] propertiesPixels) {
-        int[] propsBcg = Main.propsBcg;
+        int[] propsBcg = Main.levelPropertiesBCG;
 
         //Background
         for (int y = 0; y < propertiesPixels[0].length; y++) {
@@ -302,43 +297,46 @@ public class Generator {
         Color greenColor = new Color(0, 219, 40);
 
         Graphics2D g2d = propertiesImage.createGraphics();
-        g2d.setFont(new Font("Arial", Font.PLAIN, 28));
+        g2d.setFont(new Font("Arial", Font.PLAIN, 22));
 
-        WriteTextToRightTab(g2d, 10, 30, whiteColor, "SOW-LG version: " + VERSION);
-        WriteTextToRightTab(g2d, 10, 60, whiteColor, "Map size: " + Main.renderImgWidth + "x" + Main.renderImgHeight);
+        WriteTextToRightTab(g2d, 10, 30, whiteColor, "Type: " + Main.gameType[0]);
+        WriteTextToRightTab(g2d, 10, 60, whiteColor, "SOW-LG version: " + VERSION);
+        WriteTextToRightTab(g2d, 10, 90, whiteColor, "Map size: " + Main.renderImgWidth + "x" + Main.renderImgHeight);
 
-        g2d.setFont(new Font("Arial", Font.PLAIN, 28));
+        g2d.setFont(new Font("Arial", Font.PLAIN, 23));
 
-        WriteTextToRightTab(g2d, 10, 90, blueColor, "€: " + GameProperties.blueMoney);
-        WriteTextToRightTab(g2d, 160, 90, greenColor, "€: " + GameProperties.greenMoney);
-        WriteTextToRightTab(g2d, 10, 120, blueColor, "R: " + GameProperties.blueResearch);
-        WriteTextToRightTab(g2d, 160, 120, greenColor, "R: " + GameProperties.greenResearch);
+        WriteTextToRightTab(g2d, 10, 120, blueColor, "€: " + GameProperties.blueMoney);
+        WriteTextToRightTab(g2d, 160, 120, greenColor, "€: " + GameProperties.greenMoney);
+        WriteTextToRightTab(g2d, 10, 145, blueColor, "R: " + GameProperties.blueResearch);
+        WriteTextToRightTab(g2d, 160, 145, greenColor, "R: " + GameProperties.greenResearch);
+
+        DrawGamePropertyToRightTab(g2d, 43, 170, GameProperties.bluePVT, "src/ui/bPVT");
+        DrawGamePropertyToRightTab(g2d, 43, 255, GameProperties.blueCannon, "src/ui/bCannon");
+        DrawGamePropertyToRightTab(g2d, 43, 325, GameProperties.blueAntiair, "src/ui/bAntiair");
+        DrawGamePropertyToRightTab(g2d, 43, 395, GameProperties.bluePlasma, "src/ui/bPlasma");
+        DrawGamePropertyToRightTab(g2d, 43, 465, GameProperties.blueRotary, "src/ui/bRotary");
+        DrawGamePropertyToRightTab(g2d, 43, 535, GameProperties.blueDefragmentator, "src/ui/bDefrag");
+
+        DrawGamePropertyToRightTab(g2d, 193, 170, GameProperties.greenPVT, "src/ui/gPVT");
+
+        DrawGamePropertyToRightTab(g2d, 193, 255, GameProperties.greenCannon, "src/ui/gCannon");
+        DrawGamePropertyToRightTab(g2d, 193, 325, GameProperties.greenAntiair, "src/ui/gAntiair");
+        DrawGamePropertyToRightTab(g2d, 193, 395, GameProperties.greenPlasma, "src/ui/gPlasma");
+        DrawGamePropertyToRightTab(g2d, 193, 465, GameProperties.greenRotary, "src/ui/gRotary");
+        DrawGamePropertyToRightTab(g2d, 193, 535, GameProperties.greenDefragmentator, "src/ui/gDefrag");
 
         g2d.setFont(new Font("Arial", Font.PLAIN, 22));
 
-        WriteTextToRightTab(g2d, 10, 175, blueColor, "PVT: " + GameProperties.bluePVT);
-        WriteTextToRightTab(g2d, 160, 175, greenColor, "PVT: " + GameProperties.greenPVT);
-        WriteTextToRightTab(g2d, 10, 195, blueColor, "Cannon: " + GameProperties.blueCannon);
-        WriteTextToRightTab(g2d, 160, 195, greenColor, "Cannon: " + GameProperties.greenCannon);
-        WriteTextToRightTab(g2d, 10, 215, blueColor, "Anti-Air: " + GameProperties.blueAntiair);
-        WriteTextToRightTab(g2d, 160, 215, greenColor, "Anti-Air: " + GameProperties.greenAntiair);
-        WriteTextToRightTab(g2d, 10, 235, blueColor, "Plasma: " + GameProperties.bluePlasma);
-        WriteTextToRightTab(g2d, 160, 235, greenColor, "Plasma: " + GameProperties.greenPlasma);
-        WriteTextToRightTab(g2d, 10, 255, blueColor, "Rotary: " + GameProperties.blueRotary);
-        WriteTextToRightTab(g2d, 160, 255, greenColor, "Rotary: " + GameProperties.greenRotary);
-        WriteTextToRightTab(g2d, 10, 275, blueColor, "Defrag.: " + GameProperties.blueDefragmentator);
-        WriteTextToRightTab(g2d, 160, 275, greenColor, "Defrag.: " + GameProperties.greenDefragmentator);
-
-        WriteTextToRightTab(g2d, 10, 325, blueColor, "Fighters: " + GameProperties.blueFighters);
-        WriteTextToRightTab(g2d, 160, 325, greenColor, "Fighters: " + GameProperties.greenFighters);
-        WriteTextToRightTab(g2d, 10, 345, blueColor, "Bombers: " + GameProperties.blueBombers);
-        WriteTextToRightTab(g2d, 160, 345, greenColor, "Bombers: " + GameProperties.greenBombers);
-        WriteTextToRightTab(g2d, 10, 365, blueColor, "Trojans: " + GameProperties.blueTrojans);
-        WriteTextToRightTab(g2d, 160, 365, greenColor, "Trojans: " + GameProperties.greenTrojans);
-        WriteTextToRightTab(g2d, 10, 385, blueColor, "Carriers: " + GameProperties.blueCarrier);
-        WriteTextToRightTab(g2d, 160, 385, greenColor, "Carriers: " + GameProperties.greenCarrier);
-        WriteTextToRightTab(g2d, 10, 405, blueColor, "Meteors: " + GameProperties.blueMeteors);
-        WriteTextToRightTab(g2d, 160, 405, greenColor, "Meteors: " + GameProperties.greenMeteors);
+        WriteTextToRightTab(g2d, 10, 650, blueColor, "Fighters: " + GameProperties.blueFighters);
+        WriteTextToRightTab(g2d, 160, 650, greenColor, "Fighters: " + GameProperties.greenFighters);
+        WriteTextToRightTab(g2d, 10, 670, blueColor, "Bombers: " + GameProperties.blueBombers);
+        WriteTextToRightTab(g2d, 160, 670, greenColor, "Bombers: " + GameProperties.greenBombers);
+        WriteTextToRightTab(g2d, 10, 690, blueColor, "Trojans: " + GameProperties.blueTrojans);
+        WriteTextToRightTab(g2d, 160, 690, greenColor, "Trojans: " + GameProperties.greenTrojans);
+        WriteTextToRightTab(g2d, 10, 710, blueColor, "Carriers: " + GameProperties.blueCarrier);
+        WriteTextToRightTab(g2d, 160, 710, greenColor, "Carriers: " + GameProperties.greenCarrier);
+        WriteTextToRightTab(g2d, 10, 730, blueColor, "Meteors: " + GameProperties.blueMeteors);
+        WriteTextToRightTab(g2d, 160, 730, greenColor, "Meteors: " + GameProperties.greenMeteors);
 
         g2d.dispose();
     }
@@ -346,6 +344,11 @@ public class Generator {
     private static void WriteTextToRightTab(Graphics2D g2d, int x, int y, Color color, String text) {
         g2d.setPaint(color);
         g2d.drawString(text, x, y);
+    }
+
+    private static void DrawGamePropertyToRightTab(Graphics2D g2d, int x, int y, boolean condition, String imagePath) {
+        ImageIcon img = new ImageIcon(imagePath + (condition ? "On" : "Off") + ".png");
+        g2d.drawImage(img.getImage(), x, y, img.getIconWidth(), img.getIconHeight(), null);
     }
 
     public static BufferedImage GenerateSchemeJpg() {
@@ -362,8 +365,12 @@ public class Generator {
     private static boolean CollidesWithSomething(MapManager.Tile[][] tiles, int x, int y, int width, int height) {
         for (int k = 0; k < height; k++) {
             for (int j = 0; j < width; j++) {
-                if (tiles[j+x][k+y].groundForbidden || tiles[j+x][k+y].placedBuilding) {
-                    return true;
+                try {
+                    if (tiles[j + x][k + y].groundForbidden || tiles[j + x][k + y].placedBuilding) {
+                        return true;
+                    }
+                } catch (ArrayIndexOutOfBoundsException ar) {
+
                 }
             }
         } return false;
@@ -374,51 +381,49 @@ public class Generator {
         int[] baseSrfRA = new int[0];
         switch (biomeIndex) {
             case 0:
-                baseSrfRA = Main.snowRA;
-                //TODO baseSrfRA = Main.grassRA;
+                baseSrfRA = Main.grassRA;
                 break;
             case 1:
                 baseSrfRA = Main.mudRA;
                 break;
             case 2:
-                baseSrfRA = Main.grassRA;
+                baseSrfRA = Main.desertRA;
                 break;
             case 3:
                 baseSrfRA = Main.snowRA;
                 break;
-            case 4:
-                baseSrfRA = Main.desertRA;
-                break;
         }
 
         //#1 layer - Base
-        progressText.setText("Applying base texture");
-
         for (int y = 0; y < Main.renderImgHeight; y++) {
             for (int x = 0; x < Main.renderImgWidth; x++) {
                 resultPixels[x][y] = new Color(baseSrfRA[(x % 512) + (y % 512) * 512], false);
             }
+
+            Main.doingTaskDLG.updateProgress("Applying base texture", y, Main.renderImgHeight);
         }
 
-        //Map Edges
-        progressText.setText("Generating random edges");
-
         //Tiles blocks
-        progressText.setText("TILES - BLOCKS");
         MapManager.Tile[][] tiles = MapManager.tiles;
         for (int y = 0; y < tiles[0].length; y++) {
             for (int x = 0; x < tiles.length; x++) {
                 if (tiles[x][y].groundForbidden) {
-                    fillColorPixels(x*32, y*32, 32, 32, new Color(0, 0, 0, 50), resultPixels);
+                    fillColorPixels(x*32, y*32, 32, 32, new Color(0, 0, 0, 100), resultPixels);
                 }
+
+//                if (tiles[x][y].team == Building.TeamColor.BLUE) {
+//                    fillColorPixels(x*32, y*32, 32, 32, new Color(0, 0, 255, 50), resultPixels);
+//                } else if (tiles[x][y].team == Building.TeamColor.GREEN) {
+//                    fillColorPixels(x*32, y*32, 32, 32, new Color(0, 255, 0, 50), resultPixels);
+//                } else {
+//                    fillColorPixels(x*32, y*32, 32, 32, new Color(255, 255, 255, 50), resultPixels);
+//                }
             }
+
+            Main.doingTaskDLG.updateProgress("Shadowing", y, tiles[0].length);
         }
 
         Main.snowEdges.Generate(MapManager.tiles, resultPixels);
-
-        //Done
-        progressText.setText("Done");
-        progressDialog.setVisible(false);
     }
 
     public static void Render(BufferedImage targetBI, Color[][] pixels) {

@@ -1,0 +1,72 @@
+package eu.yozozchomutova.ui;
+
+import eu.yozozchomutova.Main;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+
+public class ImageUI extends JButton implements MouseListener {
+
+    private ImageIcon imgOff, imgOn;
+
+    public ImageUI(Container container, Main main, int x, int y, int width, int height, String imgPath) {
+        super();
+
+        this.imgOff = new ImageIcon(imgPath + "_off.png");
+        this.imgOn = new ImageIcon(imgPath + "_on.png");
+
+        setBounds(x, y, width, height);
+        setImageIcon(imgOff);
+
+        addMouseListener(this);
+
+        if (main != null) {
+            addKeyListener(main);
+            addMouseListener(main);
+        }
+
+        container.add(this);
+    }
+
+    public ImageUI(Container container, int x, int y, int width, int height, String imgPath, boolean fitXY) {
+        super();
+
+        ImageIcon img = new ImageIcon(imgPath);
+
+        if (fitXY) {
+            img = new ImageIcon(img.getImage().getScaledInstance(width, height, Image.SCALE_FAST));
+        }
+
+        setBounds(x, y, width, height);
+        setImageIcon(img);
+
+        container.add(this);
+    }
+
+    private void setImageIcon(ImageIcon imageIcon) {
+        setOpaque(false);
+        setContentAreaFilled(false);
+        setBorderPainted(false);
+        setBorder(null);
+
+        setIcon(imageIcon);
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        setIcon(imgOn);
+    }
+
+    @Override
+    public void mouseExited(MouseEvent e) {
+        setIcon(imgOff);
+    }
+
+    @Override public void mouseClicked(MouseEvent e) {}
+    @Override public void mousePressed(MouseEvent e) {}
+    @Override public void mouseReleased(MouseEvent e) {}
+}

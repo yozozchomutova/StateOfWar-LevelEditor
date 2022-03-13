@@ -14,7 +14,7 @@ public class ExportManager {
     private static final byte[] EDT_HEADER = {(byte) 0x04, (byte) 0x00, (byte) 0x8e, (byte) 0x26};
     private static final byte[] EDT_ENDER = {(byte) 0xE8, (byte) 0x1D, (byte) 0x00, (byte) 0x00};
 
-    private static final byte[] MAP_HEADER = {(byte) 0x04, (byte) 0x56, (byte) 0x45, (byte) 0x52};
+    private static final byte[] MAP_HEADER = {(byte) 0x04, (byte) 0x56, (byte) 0x45, (byte) 0x52, (byte) 0x37};
     private static final byte[] MAP_ENDER = {(byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00};
 
     private static final byte[] MAP_FALSE = {(byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00};
@@ -46,7 +46,7 @@ public class ExportManager {
         ArrayList<Byte> byteList = new ArrayList<>();
 
         writeToList(byteList, EDT_HEADER); //Header
-        writeToList(byteList, new byte[]{(byte) Main.levelIndexes[Main.biomesCB.getSelectedIndex()], 0x00, 0x00, 0x00}); //Map index
+        writeToList(byteList, new byte[]{(byte) Main.levelIndexes[Main.generateDLG.biomes.getSelectedIndex()], 0x00, 0x00, 0x00}); //Map index
 
         //Game properties
         edtWriteGameProperty(byteList, GameProperties.blueMoney, GameProperties.greenMoney);
@@ -114,20 +114,14 @@ public class ExportManager {
     }
 
     public void exportMap(File file) throws IOException {
-        byte[] origBytes = Files.readAllBytes(file.toPath());
-
-        //Fetch copy + paste bytes
-        byte[] headerBytes = new byte[7];
-
-        for (int i = 0; i < headerBytes.length; i++) {
-            headerBytes[i] = origBytes[4 + i];
-        }
-
         //Concat
         ArrayList<Byte> byteList = new ArrayList<>();
 
         writeToList(byteList, MAP_HEADER); //Header
-        writeToList(byteList, headerBytes); //Header bytes
+        writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Screen vision X
+        writeToList(byteList, new byte[]{0}); //Offset
+        writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Screen vision Y
+        writeToList(byteList, new byte[]{0}); //Offset
 
         writeToList(byteList, FileManager.toInt(Main.renderImgWidth32 << 8, FileManager.Order.BIG_ENDIAN));
         writeToList(byteList, FileManager.toInt(Main.renderImgHeight32 << 8, FileManager.Order.BIG_ENDIAN));

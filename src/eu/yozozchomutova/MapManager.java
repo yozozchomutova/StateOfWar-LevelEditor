@@ -22,6 +22,8 @@ public class MapManager {
 
         public boolean tileReplaced;
 
+        public Building.TeamColor team = Building.TeamColor.WHITE;
+
         public void forbidGround() {
             groundForbidden = true;
         }

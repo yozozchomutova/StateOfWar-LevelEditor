@@ -42,10 +42,18 @@ public class Building {
     public int hpPercentage; //0-100 %
 
     public Building(BuildingType buildingType, TeamColor teamColor, float hpPercentage, boolean hasSatelliteProtection, int xTilePos, int yTilePos) {
+        int[] productionUnits = new int[5];
+        int[] upgradableCount = new int[5];
+
+        //If it's NOT TURRET
+        if (buildingType != BuildingType.CANNON &&
+                buildingType != BuildingType.ANTIAIR &&
+                buildingType != BuildingType.PLASMA &&
+                buildingType != BuildingType.ROTARY &&
+                buildingType != BuildingType.DEFRAGMENTATOR) {
+
         totalProducts = Main.random.nextInt(3)+1;
         productionsAvailableFromStart = Main.random.nextInt(totalProducts+1);
-
-        int[] productionUnits = new int[5];
 
         //Random units
         //Basic factories
@@ -79,8 +87,6 @@ public class Building {
         }
 
         //Upgrade count
-        int[] upgradableCount = new int[5];
-
         if (buildingType == BuildingType.MEDIUM_FACTORY) {
             for (int i = 0; i < totalProducts; i++) {
                 upgradableCount[i] = 1;
@@ -89,6 +95,7 @@ public class Building {
             for (int i = 0; i < totalProducts; i++) {
                 upgradableCount[i] = 2;
             }
+        }
         }
 
         setValues(buildingType, teamColor, productionsAvailableFromStart, productionUnits[0], productionUnits[1], productionUnits[2], productionUnits[3], productionUnits[4], upgradableCount[0], upgradableCount[1], upgradableCount[2], upgradableCount[3], upgradableCount[4], hpPercentage, hasSatelliteProtection, xTilePos, yTilePos);
@@ -121,41 +128,92 @@ public class Building {
         //Update tiles
         for (int k = 0; k < 4; k++) {
             for (int j = 0; j < 4; j++) {
-                MapManager.tiles[j+xTilePos][k+yTilePos].placeBuilding();
+                try {
+                    MapManager.tiles[j + xTilePos][k + yTilePos].placeBuilding();
+                } catch (ArrayIndexOutOfBoundsException ar) {
+
+                }
             }
         }
     }
 
     public enum BuildingType {
-        HEADQUARTERS( 0x64, "na.png"),
-        SMALL_FACTORY( 0x65, "na.png"),
-        MEDIUM_FACTORY( 0x66, "na.png"),
-        BIG_FACTORY(0x67, "na.png"),
-        RADAR( 0x68, "na.png"),
-        GOLD_MINE( 0x69, "goldBrick.png"),
-        LABORATORY( 0x6A, "research.png"),
-        POWER_PLANT( 0x6B, "energy.png"),
-        ROBOT_FACTORY( 0x6C, "na.png"),
+        HEADQUARTERS( 0x64, "base.png", true, "na.png"),
+        SMALL_FACTORY( 0x65, "Flight.png", true,  "na.png"),
+        MEDIUM_FACTORY( 0x66, "Fmedium.png", true,  "na.png"),
+        BIG_FACTORY(0x67, "Fheavy.png", true,  "na.png"),
+        RADAR( 0x68, "radar.png", true,  "na.png"),
+        GOLD_MINE( 0x69, "mine.png", true,  "goldBrick.png"),
+        LABORATORY( 0x6A, "lab.png", true,  "research.png"),
+        POWER_PLANT( 0x6B, "wind.png", true,  "energy.png"),
+        ROBOT_FACTORY( 0x6C, "Frobot.png", true,  "na.png"),
+
+        CANNON( 0x19, "cannon.png", false,  "na.png"),
+        ANTIAIR( 0x1A, "antiair.png", false,  "na.png"),
+        PLASMA( 0x1B, "plasma.png", false,  "na.png"),
+        ROTARY( 0x1C, "rotary.png", false,  "na.png"),
+        DEFRAGMENTATOR( 0x1D, "defrag.png", false,  "na.png"),
         ;
 
         int id;
+
+        int[] blueVariantPixels;
+        int[] greenVariantPixels;
+        int[] whiteVariantPixels;
+
+        int width;
+        int height;
 
         int unitIconWidth;
         int unitIconHeight;
         int[] unitIconPixels;
 
-        BuildingType(int id, String unitIconFileName) {
+        BuildingType(int id, String buildingPath, boolean hasWhiteVariant, String unitIconFileName) {
             this.id = id;
 
             try {
+                //Production unit
                 BufferedImage unitIconBI = ImageIO.read(new File("src/icons/" + unitIconFileName));
 
                 this.unitIconWidth = unitIconBI.getWidth();
                 this.unitIconHeight = unitIconBI.getHeight();
                 unitIconPixels = unitIconBI.getRGB(0, 0, unitIconWidth, unitIconHeight, null, 0, unitIconWidth);
+
+                //Blue
+                BufferedImage blueVariant = ImageIO.read(new File("src/buildings/blue/" + buildingPath));
+
+                this.width = blueVariant.getWidth();
+                this.height = blueVariant.getHeight();
+
+                blueVariantPixels = blueVariant.getRGB(0, 0, width, height, null, 0, width);
+
+                //Green
+                BufferedImage greenVariant = ImageIO.read(new File("src/buildings/green/" + buildingPath));
+                greenVariantPixels = greenVariant.getRGB(0, 0, width, height, null, 0, width);
+
+                //White
+                if (hasWhiteVariant) {
+                    BufferedImage whiteVariant = ImageIO.read(new File("src/buildings/white/" + buildingPath));
+                    whiteVariantPixels = whiteVariant.getRGB(0, 0, width, height, null, 0, width);
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+
+        public int[] getBuildingPixels(TeamColor team) {
+            int[] buildingPixels;
+
+            if (team == Building.TeamColor.BLUE) {
+                buildingPixels =
+            blueVariantPixels;
+            } else if (team == Building.TeamColor.GREEN) {
+                buildingPixels = greenVariantPixels;
+            } else {
+                buildingPixels = whiteVariantPixels;
+            }
+
+            return buildingPixels;
         }
     }
 

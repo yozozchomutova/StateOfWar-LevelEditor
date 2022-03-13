@@ -1,5 +1,13 @@
 package eu.yozozchomutova;
 
+import eu.yozozchomutova.dialogwindow.*;
+import eu.yozozchomutova.ui.ImageUI;
+import eu.yozozchomutova.ui.WindowBar;
+import sun.awt.Win32GraphicsDevice;
+import sun.java2d.d3d.D3DGraphicsConfig;
+import sun.java2d.opengl.WGLGraphicsConfig;
+import sun.java2d.pipe.hw.ContextCapabilities;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -12,17 +20,16 @@ import java.nio.file.Files;
 import java.util.Random;
 
 import static eu.yozozchomutova.Generator.GenerateSchemeJpg;
-import static eu.yozozchomutova.Generator.resultImage;
 
 public class Main extends JPanel implements MouseListener, KeyListener {
 
-    public static final String VERSION = "2.0";
+    public static final String VERSION = "3.0";
 
     public static Random random = new Random();
 
     public static JFrame frame;
 
-    private static final String[] levelListStr = {
+    public static final String[] levelListStr = {
             "M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08",
             "M09", "M10", "M11", "M12", "M13", "M14", "M15", "M16",
             "M17", "M18", "M19", "M20", "M21", "M22"
@@ -34,39 +41,36 @@ public class Main extends JPanel implements MouseListener, KeyListener {
             17, 18, 19, 20, 21, 22
     };
 
-    /*private static final String[] biomesStr = {
-            "Grass", "Mud", "Grass + Mud", "Snow", "Desert"
-    };*/
-
-    private static final String[] biomesStr = {
-            "Snow"
+    public static final String[] biomesStr = {
+            "Grass", "Mud", "Desert", "Snow"
     };
 
-    private JTextField sowLevelsPath;
-    private Button applySowLPaths;
-    private JComboBox levelListCombo;
-    private Button load;
-    private Button exportPng;
-    private Button exportMap;
+    public static final String[] gameType = {
+            "Classic+Warmonger"
+    };
 
-    private Button generateLevelBtn;
-    private JDialog generateLevelDialog;
+    //Top bar
+    private ImageUI properties, newLevel, importLevel, exportLevel, exportPng; // First sequence - File managing
+    private ImageUI surfacePaint, addEdges, addMapObjects; // Second sequence - Surface editing
+    private ImageUI levelProperties, addBuilding, addUnit; // Third sequence - Object editing
+    private ImageUI generateLevel, generateObjects; // Fourth sequence - Generating
 
-    private static ImageIcon bcg = new ImageIcon("src/ui/bcg.jpg");
-    public static int[] propsBcg;
+    //Dialogs
+    public static PropertiesDLG propertiesDLG;
+    public static GenerateDLG generateDLG;
+    public static ConfirmDLG confirmDLG;
+    public static DoingTaskDLG doingTaskDLG;
 
-    //DIALOG UI
-    public static JTextField mapWidthTF, mapHeightTF;
-    public static JComboBox biomesCB;
-    public static JTextField noiseSize;
-    public static JTextField additionalGreenHeadquartersCount;
-    public static JTextField whiteBuildingsCount;
+    //Backgrounds
+    public static ImageIcon mainBCG = new ImageIcon("src/ui/bcg.jpg");
+    public static ImageIcon dialogBCG = new ImageIcon("src/ui/dialog_bcg.jpg");
+    public static int[] levelPropertiesBCG;
 
     //Map terrain
     public static BufferedImage grass, mud, snow, desert, water;
     public static int[] grassRA, mudRA, snowRA, desertRA, waterRA;
 
-    public static EdgeGenerator snowEdges;
+    public static EdgeGenerator snowEdges, stoneEdges;
 
     //Rendering
     public static JLabel surfaceRenderer;
@@ -94,12 +98,28 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     public static boolean RMB;
 
     Main() {
-        frame = new JFrame("State of War Classic/Warmonger - Level generator " + VERSION);
+        frame = new JFrame();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setUndecorated(true);
+        frame.setSize(1600, 800);
+        frame.setExtendedState( JFrame.MAXIMIZED_BOTH );
         frame.add(this);
+        frame.setVisible(true);
 
         setBackground(Color.BLACK);
         setLayout(null);
+
+        //Set default values
+        newProject(64, 64);
+
+        //Init dialogs
+        propertiesDLG = new PropertiesDLG(frame);
+        generateDLG = new GenerateDLG(frame);
+        confirmDLG = new ConfirmDLG(frame);
+        doingTaskDLG = new DoingTaskDLG(frame);
+
+        //Window bar
+        WindowBar mainWindowBar = new WindowBar(frame, this, this, frame.getWidth(), false, true, "State of War Classic/Warmonger - Level generator/editor " + VERSION);
 
         playerPropertiesRenderer = new JLabel();
         playerPropertiesRenderer.setVisible(false);
@@ -110,21 +130,21 @@ public class Main extends JPanel implements MouseListener, KeyListener {
 
         //Load map pieces
         try {
-            //grass = ImageIO.read(new File("src/mapPieces/grass.jpg"));
-            //mud = ImageIO.read(new File("src/mapPieces/mud.jpg"));
+            grass = ImageIO.read(new File("src/mapPieces/grass.jpg"));
+            mud = ImageIO.read(new File("src/mapPieces/mud.jpg"));
             snow = ImageIO.read(new File("src/mapPieces/snow.jpg"));
-            //water = ImageIO.read(new File("src/mapPieces/sea2.jpg"));
+            desert = ImageIO.read(new File("src/mapPieces/desert.jpg"));
 
             BufferedImage propsBcgBI = ImageIO.read(new File("src/ui/propsBcg.jpg"));
-            propsBcg = propsBcgBI.getRGB(0, 0, propsBcgBI.getWidth(), propsBcgBI.getHeight(), null, 0, propsBcgBI.getWidth());
+            levelPropertiesBCG = propsBcgBI.getRGB(0, 0, propsBcgBI.getWidth(), propsBcgBI.getHeight(), null, 0, propsBcgBI.getWidth());
         } catch (IOException ioe) {
             ioe.printStackTrace();
         }
 
-        //grassRA = Main.grass.getRGB(0, 0, Main.grass.getWidth(), Main.grass.getHeight(), null, 0, Main.grass.getWidth());
-        //mudRA = Main.mud.getRGB(0, 0, Main.mud.getWidth(), Main.mud.getHeight(), null, 0, Main.mud.getWidth());
+        grassRA = Main.grass.getRGB(0, 0, Main.grass.getWidth(), Main.grass.getHeight(), null, 0, Main.grass.getWidth());
+        mudRA = Main.mud.getRGB(0, 0, Main.mud.getWidth(), Main.mud.getHeight(), null, 0, Main.mud.getWidth());
         snowRA = Main.snow.getRGB(0, 0, Main.snow.getWidth(), Main.snow.getHeight(), null, 0, Main.snow.getWidth());
-        //waterRA = Main.water.getRGB(0, 0, Main.water.getWidth(), Main.water.getHeight(), null, 0, Main.water.getWidth());
+        desertRA = Main.desert.getRGB(0, 0, Main.desert.getWidth(), Main.desert.getHeight(), null, 0, Main.desert.getWidth());
 
         snowEdges = new EdgeGenerator("snow/");
 
@@ -138,57 +158,53 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         endlessThread.start();
 
         //Visible
-        frame.setVisible(true);
-        frame.setSize(1600, 800);
-        frame.setExtendedState( frame.getExtendedState()|JFrame.MAXIMIZED_BOTH );
-        frame.repaint();
         frame.setFocusable(true);
         frame.addMouseListener(this);
         frame.addKeyListener(this);
+
+        frame.repaint();
         repaint();
 
         frame.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
                 super.componentResized(e);
+
+                mainWindowBar.updateUI(frame.getWidth());
             }
         });
     }
 
     private void setupUI() {
-        //Levels loading path
-        sowLevelsPath = new JTextField();
-        sowLevelsPath.setBounds(10, 10, 400, 20);
-        add(sowLevelsPath);
+        // 1. Seuquence - File/Project managing
+        properties = new ImageUI(this, this, 0, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_properties");
+        newLevel = new ImageUI(this, this, 64, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_newProject");
+        importLevel = new ImageUI(this, this, 128, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_iLvl");
+        exportLevel = new ImageUI(this, this, 192, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_eLvl");
+        exportPng = new ImageUI(this, this, 256, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_ePng");
 
-        File sowPathPreferenceFile = new File("src/sowPath.pref");
+        // 2. Seuquence - Surface editing
+        surfacePaint = new ImageUI(this, this, 384, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_surfacePaint");
+        addEdges = new ImageUI(this, this, 448, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aEdges");
+        addMapObjects = new ImageUI(this, this, 512, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aObjects");
 
-        if (sowPathPreferenceFile.exists()) {
-            try {
-                byte[] bytes = Files.readAllBytes(sowPathPreferenceFile.toPath());
-                sowLevelsPath.setText(new String(bytes));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        // 3. Seuquence - Object editing
+        levelProperties = new ImageUI(this, this, 640, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_properties");
+        addBuilding = new ImageUI(this, this, 704, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aBuilding");
+        addUnit = new ImageUI(this, this, 768, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aUnit");
 
-        applySowLPaths = new Button(this, 420, 10, 100, 20, "Apply");
-        applySowLPaths.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    //Save
-                    if (!sowPathPreferenceFile.exists()) {
-                        sowPathPreferenceFile.createNewFile();
-                    }
+        // 4. Seuquence - Generating
+        generateLevel = new ImageUI(this, this, 896, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gLevel");
+        generateObjects = new ImageUI(this, this, 960, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gObjects");
 
-                    Files.write(sowPathPreferenceFile.toPath(), sowLevelsPath.getText().getBytes());
-                } catch (IOException ioe) {}
-            }
+        //Action listeners
+        properties.addActionListener(e -> {
+            //
+            propertiesDLG.setVisible(true);
         });
 
-        load = new Button(this, 530, 10, 100, 20, "Load");
-        load.addActionListener(new ActionListener() {
+        //Levels loading path
+        /*load.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 File file = openFileChooser(true);
@@ -212,45 +228,48 @@ public class Main extends JPanel implements MouseListener, KeyListener {
                     sowLevelsPath.setText(file.getAbsolutePath());
                 }
             }
-        });
+        });*/
 
-        levelListCombo = new JComboBox(levelListStr);
-        levelListCombo.setBounds(640, 10, 100, 20);
-        levelListCombo.addKeyListener(this);
-        levelListCombo.addMouseListener(this);
-        add(levelListCombo);
+        exportPng.addActionListener(e -> {
+            try {
+                File selectedFolder = openFileChooser(true, "Output folder");
+                if (selectedFolder == null)
+                    return;
 
-        exportPng = new Button(this, 750, 10, 100, 20, "Export PNG");
-        exportPng.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    File file = new File("src/outputMap.jpg");
+                File file = new File(selectedFolder.getAbsolutePath() + "/mapScheme.jpg");
+                file.createNewFile();
 
-                    if (!file.exists()) {
-                        file.createNewFile();
-                    }
+                ImageIO.write(GenerateSchemeJpg(), "jpg", file);
 
-                    ImageIO.write(GenerateSchemeJpg(), "jpg", file);
-
-                    JOptionPane.showMessageDialog(Main.this, "Export was successfull!");
-                } catch (IOException io) {
-                    io.printStackTrace();
-                    JOptionPane.showMessageDialog(Main.this, "Export failed!");
-                }
+                JOptionPane.showMessageDialog(Main.this, "Export was successfull!");
+            } catch (IOException io) {
+                io.printStackTrace();
+                JOptionPane.showMessageDialog(Main.this, "Export failed!");
             }
         });
 
-        exportMap = new Button(this, 860, 10, 100, 20, "Export MAP");
-        exportMap.addActionListener(new ActionListener() {
+        importLevel.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                /*File selectedFolder = openFileChooser(false, "SOW .edt files", "edt");
+                if (selectedFolder == null)
+                    return;*/
+            }
+        });
+
+        exportLevel.addActionListener(e -> {
+            File file = openFileChooser(false, "SOW .edt files", "edt");
+
+            if (file != null) {
+                String path = file.getAbsolutePath();
+                String filename = path.substring(0, path.length()-4);
+
                 try {
-                    File edtFile = new File( sowLevelsPath.getText() + "/" + levelListStr[levelListCombo.getSelectedIndex()] + ".edt");
-                    File mapFile = new File( sowLevelsPath.getText() + "/" + levelListStr[levelListCombo.getSelectedIndex()] + ".map");
-                    File srfFile = new File( sowLevelsPath.getText() + "/" + levelListStr[levelListCombo.getSelectedIndex()] + ".srf");
-                    File tilFile = new File( sowLevelsPath.getText() + "/" + levelListStr[levelListCombo.getSelectedIndex()] + ".til");
-                    File tmiFile = new File( sowLevelsPath.getText() + "/" + levelListStr[levelListCombo.getSelectedIndex()] + ".tmi");
+                    File edtFile = new File(filename + ".edt");
+                    File mapFile = new File(filename + ".map");
+                    File srfFile = new File(filename + ".srf");
+                    File tilFile = new File(filename + ".til");
+                    File tmiFile = new File(filename + ".tmi");
 
                     ExportManager exportManager = new ExportManager();
                     exportManager.exportAll(edtFile, mapFile, Generator.srfImage);
@@ -270,95 +289,25 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         });
 
         //2nd row
-        generateLevelBtn = new Button(this, 10, 40, 100, 20,"Generate");
-        generateLevelBtn.addActionListener(new ActionListener() {
+        generateLevel.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                generateLevelDialog.setVisible(true);
+                generateDLG.setVisible(true);
             }
         });
-
-        //Dialog
-        generateLevelDialog = new JDialog(frame, "Generate new level", true);
-        generateLevelDialog.setBounds(200, 200, 500, 520);
-        generateLevelDialog.setResizable(false);
-        generateLevelDialog.setLayout(null);
-        setupDialogUI();
 
         //Surface renderer
         surfaceRenderer = new JLabel();
         add(surfaceRenderer);
     }
 
-    private void setupDialogUI() {
-        /*JCheckBox experimentalMode = new JCheckBox("Experimental mode");
-        experimentalMode.setBounds(5, 5, 200, 20);
-        generateLevelDialog.add(experimentalMode);*/
-
-        mapWidthTF = new JTextField("64");
-        mapWidthTF.setBounds(5,5, 50, 20);
-        mapWidthTF.setToolTipText("Map width (value * 32 = map width in pixels)");
-        generateLevelDialog.add(mapWidthTF);
-
-        mapHeightTF = new JTextField("64");
-        mapHeightTF.setBounds(60,5, 50, 20);
-        mapHeightTF.setToolTipText("Map height (value * 32 = map height in pixels)");
-        generateLevelDialog.add(mapHeightTF);
-
-        biomesCB = new JComboBox(biomesStr);
-        biomesCB.setBounds(5, 30, 80, 20);
-        generateLevelDialog.add(biomesCB);
-
-        additionalGreenHeadquartersCount = new JTextField("0");
-        additionalGreenHeadquartersCount.setToolTipText("Green headquarters count");
-        additionalGreenHeadquartersCount.setBounds(5, 60, 50, 20);
-        generateLevelDialog.add(additionalGreenHeadquartersCount);
-
-        noiseSize = new JTextField("500");
-        noiseSize.setToolTipText("Noise zoom");
-        noiseSize.setBounds(5, 90, 50, 20);
-        generateLevelDialog.add(noiseSize);
-
-        whiteBuildingsCount = new JTextField("15");
-        whiteBuildingsCount.setToolTipText("White buildings count");
-        whiteBuildingsCount.setBounds(5, 120, 50, 20);
-        generateLevelDialog.add(whiteBuildingsCount);
-
-        Button generate = new Button(generateLevelDialog, 5, 445, 100, 30, "Generate");
-        generate.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                generateLevelDialog.setVisible(false);
-
-                try {
-                    renderImgWidth32 = Integer.parseInt(mapWidthTF.getText());
-                    renderImgHeight32 = Integer.parseInt(mapHeightTF.getText());
-
-                    //Bounds
-                    renderImgWidth32 = Math.min(MAX_IMG_WIDTH, renderImgWidth32);
-                    renderImgHeight32 = Math.min(MAX_IMG_HEIGHT, renderImgHeight32);
-                    renderImgWidth32 = Math.max(MIN_IMG_WIDTH, renderImgWidth32);
-                    renderImgHeight32 = Math.max(MIN_IMG_HEIGHT, renderImgHeight32);
-
-                    renderImgWidth = renderImgWidth32 * 32;
-                    renderImgHeight = renderImgHeight32 * 32;
-                } catch (NumberFormatException ne) {
-                    JOptionPane.showMessageDialog(Main.this, "Invalid map size", "Map size error!", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-
-                Generator.Generate(Double.parseDouble(noiseSize.getText()), Integer.parseInt(additionalGreenHeadquartersCount.getText()), Integer.parseInt(whiteBuildingsCount.getText()), biomesCB.getSelectedIndex());
-            }
-        });
-    }
-
-    private File openFileChooser(boolean directoriesOnly) {
+    private File openFileChooser(boolean directoriesOnly, String desc, String... extensions) {
         JFileChooser fileChooser = new JFileChooser();
 
         if (directoriesOnly)
             fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         else
-            fileChooser.setFileFilter(new FileNameExtensionFilter("SOW Map files (.srf)", "srf"));
+            fileChooser.setFileFilter(new FileNameExtensionFilter(desc, extensions));
 
         int returnValue = fileChooser.showOpenDialog(this);
 
@@ -374,20 +323,29 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     }
 
     private void setUIVisible(boolean visible) {
-        sowLevelsPath.setVisible(visible);
-        applySowLPaths.setVisible(visible);
-        levelListCombo.setVisible(visible);
-        load.setVisible(visible);
+        properties.setVisible(visible);
+        newLevel.setVisible(visible);
+        importLevel.setVisible(visible);
+        exportLevel.setVisible(visible);
         exportPng.setVisible(visible);
-        exportMap.setVisible(visible);
-        generateLevelBtn.setVisible(visible);
+
+        surfacePaint.setVisible(visible);
+        addEdges.setVisible(visible);
+        addMapObjects.setVisible(visible);
+
+        levelProperties.setVisible(visible);
+        addBuilding.setVisible(visible);
+        addUnit.setVisible(visible);
+
+        generateLevel.setVisible(visible);
+        generateObjects.setVisible(visible);
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        bcg.paintIcon(this, g, 0, 0);
+        mainBCG.paintIcon(this, g, 0, 0);
 
         repaint();
     }
@@ -430,7 +388,7 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         int keyCode = e.getKeyCode();
 
         if (keyCode == KeyEvent.VK_H) { //Toggle UI
-            setUIVisible(!load.isVisible());
+            setUIVisible(!properties.isVisible());
         } else if (keyCode == KeyEvent.VK_S) { // Show how map/scheme will/should really look
             surfaceRenderer.setIcon(new ImageIcon(Generator.resultImage));
         } else if (keyCode == KeyEvent.VK_D) { // Show how surface will really look
@@ -442,4 +400,12 @@ public class Main extends JPanel implements MouseListener, KeyListener {
 
     @Override public void keyTyped(KeyEvent e) {}
     @Override public void keyReleased(KeyEvent e) { }
+
+    public static void newProject(int tiledMapWidth, int tiledMapHeight) {
+        Main.renderImgWidth32 = tiledMapWidth;
+        Main.renderImgHeight32 = tiledMapHeight;
+
+        Main.renderImgWidth = Main.renderImgWidth32 * 32;
+        Main.renderImgHeight = Main.renderImgHeight32 * 32;
+    }
 }
