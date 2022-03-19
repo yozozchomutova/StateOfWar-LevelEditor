@@ -41,8 +41,8 @@ public class GameProperties {
         Random r = new Random();
 
         //Money
-        blueMoney = r.nextInt(1500);
-        greenMoney = r.nextInt(1500);
+        blueMoney = r.nextInt(7000) + 3000;
+        greenMoney = r.nextInt(7000) + 3000;
 
         //Research
         blueResearch = r.nextInt(250);

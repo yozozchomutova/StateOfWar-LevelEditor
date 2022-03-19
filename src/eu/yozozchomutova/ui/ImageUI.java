@@ -14,6 +14,10 @@ public class ImageUI extends JButton implements MouseListener {
     private ImageIcon imgOff, imgOn;
 
     public ImageUI(Container container, Main main, int x, int y, int width, int height, String imgPath) {
+        this(container, main, x, y, width, height, imgPath, true);
+    }
+
+    public ImageUI(Container container, Main main, int x, int y, int width, int height, String imgPath, boolean visible) {
         super();
 
         this.imgOff = new ImageIcon(imgPath + "_off.png");
@@ -29,16 +33,17 @@ public class ImageUI extends JButton implements MouseListener {
             addMouseListener(main);
         }
 
+        setVisible(visible);
         container.add(this);
     }
 
-    public ImageUI(Container container, int x, int y, int width, int height, String imgPath, boolean fitXY) {
+    public ImageUI(Container container, int x, int y, int width, int height, String imgPath, int scaleType) {
         super();
 
         ImageIcon img = new ImageIcon(imgPath);
 
-        if (fitXY) {
-            img = new ImageIcon(img.getImage().getScaledInstance(width, height, Image.SCALE_FAST));
+        if (scaleType != 0) {
+            img = new ImageIcon(img.getImage().getScaledInstance(width, height, scaleType));
         }
 
         setBounds(x, y, width, height);

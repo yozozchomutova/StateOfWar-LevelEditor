@@ -1,12 +1,9 @@
 package eu.yozozchomutova;
 
 import eu.yozozchomutova.dialogwindow.*;
+import eu.yozozchomutova.toolpanel.EditObjectToolPanel;
 import eu.yozozchomutova.ui.ImageUI;
 import eu.yozozchomutova.ui.WindowBar;
-import sun.awt.Win32GraphicsDevice;
-import sun.java2d.d3d.D3DGraphicsConfig;
-import sun.java2d.opengl.WGLGraphicsConfig;
-import sun.java2d.pipe.hw.ContextCapabilities;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -19,11 +16,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Random;
 
-import static eu.yozozchomutova.Generator.GenerateSchemeJpg;
-
 public class Main extends JPanel implements MouseListener, KeyListener {
 
-    public static final String VERSION = "3.0";
+    public static final String VERSION = "4.0";
 
     public static Random random = new Random();
 
@@ -50,21 +45,26 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     };
 
     //Top bar
-    private ImageUI properties, newLevel, importLevel, exportLevel, exportPng; // First sequence - File managing
-    private ImageUI surfacePaint, addEdges, addMapObjects; // Second sequence - Surface editing
-    private ImageUI levelProperties, addBuilding, addUnit; // Third sequence - Object editing
-    private ImageUI generateLevel, generateObjects; // Fourth sequence - Generating
+    private static ImageUI settings, newLevel, importLevel, exportLevel, exportPng; // First sequence - File managing
+    private static ImageUI surfacePaint, addEdges, addMapObjects; // Second sequence - Surface editing
+    private static ImageUI levelProperties, addBuilding, addUnit; // Third sequence - Object editing
+    private static ImageUI generateLevel, generateObjects; // Fourth sequence - Generating
 
     //Dialogs
-    public static PropertiesDLG propertiesDLG;
+    public static LevelPropertiesDLG levelPropertiesDLG;
+    public static NewProjectDLG newProjectDLG;
     public static GenerateDLG generateDLG;
     public static ConfirmDLG confirmDLG;
     public static DoingTaskDLG doingTaskDLG;
+    public static SettingsDLG settingsDLG;
+
+    //ToolPanes
+    public static EditObjectToolPanel editObjectTP;
 
     //Backgrounds
     public static ImageIcon mainBCG = new ImageIcon("src/ui/bcg.jpg");
     public static ImageIcon dialogBCG = new ImageIcon("src/ui/dialog_bcg.jpg");
-    public static int[] levelPropertiesBCG;
+    public static BufferedImage levelPropertiesBCG;
 
     //Map terrain
     public static BufferedImage grass, mud, snow, desert, water;
@@ -81,11 +81,6 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     public final static int MAX_IMG_WIDTH = 128;
     public final static int MAX_IMG_HEIGHT = 128;
 
-    public static int renderImgWidth;
-    public static int renderImgHeight;
-    public static int renderImgWidth32;
-    public static int renderImgHeight32;
-
     //BuildingPacks
     public static BuildingPack blueBPack, greenBPack, whiteBPack;
 
@@ -97,36 +92,45 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     public static boolean MMB;
     public static boolean RMB;
 
+    //#DEBUG#
+    public static JLabel memoryProfiler;
+
     Main() {
         frame = new JFrame();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setUndecorated(true);
         frame.setSize(1600, 800);
         frame.setExtendedState( JFrame.MAXIMIZED_BOTH );
+        frame.setIconImage(new ImageIcon("src/icons/icon.png").getImage());
         frame.add(this);
         frame.setVisible(true);
 
         setBackground(Color.BLACK);
         setLayout(null);
 
-        //Set default values
-        newProject(64, 64);
-
         //Init dialogs
-        propertiesDLG = new PropertiesDLG(frame);
+        levelPropertiesDLG = new LevelPropertiesDLG(frame);
+        newProjectDLG = new NewProjectDLG(frame);
         generateDLG = new GenerateDLG(frame);
         confirmDLG = new ConfirmDLG(frame);
         doingTaskDLG = new DoingTaskDLG(frame);
+        settingsDLG = new SettingsDLG(frame);
 
         //Window bar
         WindowBar mainWindowBar = new WindowBar(frame, this, this, frame.getWidth(), false, true, "State of War Classic/Warmonger - Level generator/editor " + VERSION);
+        mainWindowBar.setIcon("src/icons/icon.png");
 
         playerPropertiesRenderer = new JLabel();
         playerPropertiesRenderer.setVisible(false);
         playerPropertiesRenderer.setVerticalAlignment(SwingConstants.TOP);
         add(playerPropertiesRenderer);
 
-        setupUI();
+        //DEBUG memory profiler
+        memoryProfiler = new JLabel();
+        memoryProfiler.setVerticalAlignment(SwingConstants.TOP);
+        memoryProfiler.setForeground(Color.white);
+        memoryProfiler.setBounds(0, frame.getHeight()-100, 300, 100);
+        add(memoryProfiler);
 
         //Load map pieces
         try {
@@ -135,8 +139,7 @@ public class Main extends JPanel implements MouseListener, KeyListener {
             snow = ImageIO.read(new File("src/mapPieces/snow.jpg"));
             desert = ImageIO.read(new File("src/mapPieces/desert.jpg"));
 
-            BufferedImage propsBcgBI = ImageIO.read(new File("src/ui/propsBcg.jpg"));
-            levelPropertiesBCG = propsBcgBI.getRGB(0, 0, propsBcgBI.getWidth(), propsBcgBI.getHeight(), null, 0, propsBcgBI.getWidth());
+            levelPropertiesBCG = ImageIO.read(new File("src/ui/propsBcg.jpg"));
         } catch (IOException ioe) {
             ioe.printStackTrace();
         }
@@ -147,6 +150,11 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         desertRA = Main.desert.getRGB(0, 0, Main.desert.getWidth(), Main.desert.getHeight(), null, 0, Main.desert.getWidth());
 
         snowEdges = new EdgeGenerator("snow/");
+
+        //Init tool panels
+        editObjectTP = new EditObjectToolPanel(frame);
+
+        setupUI();
 
         //Building pack
         blueBPack = new BuildingPack("blue/");
@@ -177,58 +185,65 @@ public class Main extends JPanel implements MouseListener, KeyListener {
 
     private void setupUI() {
         // 1. Seuquence - File/Project managing
-        properties = new ImageUI(this, this, 0, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_properties");
-        newLevel = new ImageUI(this, this, 64, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_newProject");
-        importLevel = new ImageUI(this, this, 128, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_iLvl");
-        exportLevel = new ImageUI(this, this, 192, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_eLvl");
-        exportPng = new ImageUI(this, this, 256, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_ePng");
+        settings = new ImageUI(this, this, 0, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_settings", true);
+        newLevel = new ImageUI(this, this, 64, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_newProject", true);
+        importLevel = new ImageUI(this, this, 128, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_iLvl", true);
+        exportLevel = new ImageUI(this, this, 192, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_eLvl", false);
+        exportPng = new ImageUI(this, this, 256, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_ePng", false);
 
         // 2. Seuquence - Surface editing
-        surfacePaint = new ImageUI(this, this, 384, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_surfacePaint");
-        addEdges = new ImageUI(this, this, 448, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aEdges");
-        addMapObjects = new ImageUI(this, this, 512, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aObjects");
+        surfacePaint = new ImageUI(this, this, 384, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_surfacePaint", false);
+        addEdges = new ImageUI(this, this, 448, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aEdges", false);
+        addMapObjects = new ImageUI(this, this, 512, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aObjects", false);
 
         // 3. Seuquence - Object editing
-        levelProperties = new ImageUI(this, this, 640, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_properties");
-        addBuilding = new ImageUI(this, this, 704, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aBuilding");
-        addUnit = new ImageUI(this, this, 768, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aUnit");
+        levelProperties = new ImageUI(this, this, 640, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_properties", false);
+        addBuilding = new ImageUI(this, this, 704, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aBuilding", false);
+        addUnit = new ImageUI(this, this, 768, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_aUnit", false);
 
         // 4. Seuquence - Generating
-        generateLevel = new ImageUI(this, this, 896, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gLevel");
-        generateObjects = new ImageUI(this, this, 960, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gObjects");
+        generateLevel = new ImageUI(this, this, 896, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gLevel", false);
+        generateObjects = new ImageUI(this, this, 960, WindowBar.BAR_HEIGHT, 64, 64, "src/ui/btn_gObjects", false);
 
         //Action listeners
-        properties.addActionListener(e -> {
+        settings.addActionListener(e -> {
             //
-            propertiesDLG.setVisible(true);
+            settingsDLG.setVisible(true);
+        });
+
+        newLevel.addActionListener(e -> {
+            //
+            newProjectDLG.setVisible(true);
         });
 
         //Levels loading path
-        /*load.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                File file = openFileChooser(true);
+        importLevel.addActionListener(e -> {
+            File file = openFileChooser(false, "SOW level files", "edt", "srf", "map");
 
-                if (file != null) {
-                    for (int i = 0; i < levelListStr.length; i++) {
-                        File edtFile = new File( file.getAbsolutePath() + "/" + levelListStr[i] + ".edt");
-                        File mapFile = new File( file.getAbsolutePath() + "/" + levelListStr[i] + ".map");
-                        File srfFile = new File( file.getAbsolutePath() + "/" + levelListStr[i] + ".srf");
-                        File tilFile = new File( file.getAbsolutePath() + "/" + levelListStr[i] + ".til");
-                        File tmiFile = new File( file.getAbsolutePath() + "/" + levelListStr[i] + ".tmi");
+            if (file != null) {
+                String path = file.getAbsolutePath();
+                path = path.substring(0, path.length()-4);
 
-                        //Check their existence
-                        if (!edtFile.exists() || !mapFile.exists() || !srfFile.exists() || !tilFile.exists() || !tmiFile.exists()) {
-                            JOptionPane.showMessageDialog(Main.this, "Files of level " + levelListStr[i] + " are not complete!", "Missing files!", JOptionPane.INFORMATION_MESSAGE);
-                            return;
-                        }
-                    }
+                File edtFile = new File( path + ".edt");
+                File mapFile = new File( path + ".map");
+                File srfFile = new File( path + ".srf");
+                File tilFile = new File( path + ".til");
+                File tmiFile = new File( path + ".tmi");
 
-                    JOptionPane.showMessageDialog(Main.this, "All files were found!", "Success!", JOptionPane.INFORMATION_MESSAGE);
-                    sowLevelsPath.setText(file.getAbsolutePath());
+                //Check their existence
+                /*if (!edtFile.exists() || !mapFile.exists() || !srfFile.exists() || !tilFile.exists() || !tmiFile.exists()) {
+                    JOptionPane.showMessageDialog(Main.this, "Files of level are not complete!", "Missing files!", JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }*/
+
+                //Import level
+                try {
+                    ImportManager.importAll(edtFile, mapFile, srfFile);
+                } catch (IOException io) {
+                    io.printStackTrace();
                 }
             }
-        });*/
+        });
 
         exportPng.addActionListener(e -> {
             try {
@@ -239,21 +254,12 @@ public class Main extends JPanel implements MouseListener, KeyListener {
                 File file = new File(selectedFolder.getAbsolutePath() + "/mapScheme.jpg");
                 file.createNewFile();
 
-                ImageIO.write(GenerateSchemeJpg(), "jpg", file);
+                ImageIO.write(Rasterizer.generateSchemeJpg(Level.mapSchemeImage, Level.levelPropertiesImage), "jpg", file);
 
                 JOptionPane.showMessageDialog(Main.this, "Export was successfull!");
             } catch (IOException io) {
                 io.printStackTrace();
                 JOptionPane.showMessageDialog(Main.this, "Export failed!");
-            }
-        });
-
-        importLevel.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                /*File selectedFolder = openFileChooser(false, "SOW .edt files", "edt");
-                if (selectedFolder == null)
-                    return;*/
             }
         });
 
@@ -272,7 +278,7 @@ public class Main extends JPanel implements MouseListener, KeyListener {
                     File tmiFile = new File(filename + ".tmi");
 
                     ExportManager exportManager = new ExportManager();
-                    exportManager.exportAll(edtFile, mapFile, Generator.srfImage);
+                    exportManager.exportAll(edtFile, mapFile, Level.srfImage);
 
                     Files.write(edtFile.toPath(), exportManager.edtBytes);
                     Files.write(mapFile.toPath(), exportManager.mapBytes);
@@ -288,12 +294,21 @@ public class Main extends JPanel implements MouseListener, KeyListener {
             }
         });
 
+        levelProperties.addActionListener(e -> {
+            //
+            levelPropertiesDLG.reasignValues();
+            levelPropertiesDLG.setVisible(true);
+        });
+
         //2nd row
-        generateLevel.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                generateDLG.setVisible(true);
-            }
+        generateLevel.addActionListener(e -> {
+            generateDLG.setGenerateSettings(true, true);
+            generateDLG.setVisible(true);
+        });
+
+        generateObjects.addActionListener(e -> {
+            generateDLG.setGenerateSettings(false, true);
+            generateDLG.setVisible(true);
         });
 
         //Surface renderer
@@ -322,16 +337,16 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         new Main();
     }
 
-    private void setUIVisible(boolean visible) {
-        properties.setVisible(visible);
+    public static void setUIVisible(boolean visible) {
+        settings.setVisible(visible);
         newLevel.setVisible(visible);
         importLevel.setVisible(visible);
         exportLevel.setVisible(visible);
         exportPng.setVisible(visible);
 
-        surfacePaint.setVisible(visible);
-        addEdges.setVisible(visible);
-        addMapObjects.setVisible(visible);
+//        surfacePaint.setVisible(visible);
+//        addEdges.setVisible(visible);
+//        addMapObjects.setVisible(visible);
 
         levelProperties.setVisible(visible);
         addBuilding.setVisible(visible);
@@ -344,6 +359,7 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        Graphics2D g2d = (Graphics2D) g;
 
         mainBCG.paintIcon(this, g, 0, 0);
 
@@ -379,7 +395,39 @@ public class Main extends JPanel implements MouseListener, KeyListener {
         }
     }
 
-    @Override public void mouseClicked(MouseEvent e) {}
+    @Override public void mouseClicked(MouseEvent e) {
+        int mouseHitX = e.getX() + Camera.x;
+        int mouseHitY = e.getY() - WindowBar.BAR_HEIGHT + Camera.y;
+
+        //Check for building selection
+        for (Building b : Level.buildings) {
+            int leftX = b.xTilePos*32;
+            int topY = b.yTilePos*32;
+            int rightX = leftX + b.buildingType.width;
+            int bottomY = topY + b.buildingType.height;
+
+            if (mouseHitX > leftX && mouseHitX < rightX && mouseHitY > topY && mouseHitY < bottomY) {
+                editObjectTP.selectBuilding(b);
+                editObjectTP.setVisibility(true);
+                return;
+            }
+        }
+
+        //Check for unit selection
+        for (Unit u : Level.units) {
+            int leftX = u.x;
+            int topY = u.y;
+            int rightX = leftX + u.unitType.width;
+            int bottomY = topY + u.unitType.height;
+
+            if (mouseHitX > leftX && mouseHitX < rightX && mouseHitY > topY && mouseHitY < bottomY) {
+                editObjectTP.selectUnit(u);
+                //editObjectTP.setVisibility(true);
+                return;
+            }
+        }
+    }
+
     @Override public void mouseEntered(MouseEvent e) {}
     @Override public void mouseExited(MouseEvent e) {}
 
@@ -387,12 +435,12 @@ public class Main extends JPanel implements MouseListener, KeyListener {
     public void keyPressed(KeyEvent e) {
         int keyCode = e.getKeyCode();
 
-        if (keyCode == KeyEvent.VK_H) { //Toggle UI
-            setUIVisible(!properties.isVisible());
-        } else if (keyCode == KeyEvent.VK_S) { // Show how map/scheme will/should really look
-            surfaceRenderer.setIcon(new ImageIcon(Generator.resultImage));
-        } else if (keyCode == KeyEvent.VK_D) { // Show how surface will really look
-            surfaceRenderer.setIcon(new ImageIcon(Generator.srfImage));
+        if (keyCode == KeyEvent.VK_H && newLevel.isVisible() == addBuilding.isVisible()) { //Toggle UI
+            setUIVisible(!settings.isVisible());
+        } else if (keyCode == KeyEvent.VK_S && Level.mapSchemeImage != null) { // Show how map/scheme will/should really look
+            surfaceRenderer.setIcon(new ImageIcon(Level.mapSchemeImage));
+        } else if (keyCode == KeyEvent.VK_D && Level.srfImage != null) { // Show how surface will really look
+            surfaceRenderer.setIcon(new ImageIcon(Level.srfImage));
         } else if (keyCode == KeyEvent.VK_G) { //Toggle player properties
             playerPropertiesRenderer.setVisible(!playerPropertiesRenderer.isVisible());
         }
@@ -400,12 +448,4 @@ public class Main extends JPanel implements MouseListener, KeyListener {
 
     @Override public void keyTyped(KeyEvent e) {}
     @Override public void keyReleased(KeyEvent e) { }
-
-    public static void newProject(int tiledMapWidth, int tiledMapHeight) {
-        Main.renderImgWidth32 = tiledMapWidth;
-        Main.renderImgHeight32 = tiledMapHeight;
-
-        Main.renderImgWidth = Main.renderImgWidth32 * 32;
-        Main.renderImgHeight = Main.renderImgHeight32 * 32;
-    }
 }

@@ -46,7 +46,7 @@ public class ExportManager {
         ArrayList<Byte> byteList = new ArrayList<>();
 
         writeToList(byteList, EDT_HEADER); //Header
-        writeToList(byteList, new byte[]{(byte) Main.levelIndexes[Main.generateDLG.biomes.getSelectedIndex()], 0x00, 0x00, 0x00}); //Map index
+        writeToList(byteList, new byte[]{(byte) 0x00, 0x00, 0x00, 0x00}); //Map index
 
         //Game properties
         edtWriteGameProperty(byteList, GameProperties.blueMoney, GameProperties.greenMoney);
@@ -84,22 +84,22 @@ public class ExportManager {
         //TODO Timer
 
         //Buildings
-        for (int i = 0; i < Generator.buildings.size(); i++) {
-            Building b = Generator.buildings.get(i);
+        for (int i = 0; i < Level.buildings.size(); i++) {
+            Building b = Level.buildings.get(i);
 
             writeToList(byteList, FileManager.toInt(123, FileManager.Order.LITTLE_ENDIAN)); // Building unit
             writeToList(byteList, new byte[]{(byte) b.buildingType.id, 0, 0, 0}); // Type
             writeToList(byteList, FileManager.toInt(b.productionsAvailableFromStart, FileManager.Order.LITTLE_ENDIAN)); // Production available from start
-            writeToList(byteList, FileManager.toInt(b.productionUnit1, FileManager.Order.LITTLE_ENDIAN)); // 1. Production unit
-            writeToList(byteList, FileManager.toInt(b.productionUnit2, FileManager.Order.LITTLE_ENDIAN)); // 2. Production unit
-            writeToList(byteList, FileManager.toInt(b.productionUnit3, FileManager.Order.LITTLE_ENDIAN)); // 3. Production unit
-            writeToList(byteList, FileManager.toInt(b.productionUnit4, FileManager.Order.LITTLE_ENDIAN)); // 4. Production unit
-            writeToList(byteList, FileManager.toInt(b.productionUnit5, FileManager.Order.LITTLE_ENDIAN)); // 5. Production unit
-            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItem1, FileManager.Order.LITTLE_ENDIAN)); // 1. Production unit Upgrade count
-            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItem2, FileManager.Order.LITTLE_ENDIAN)); // 2. Production unit Upgrade count
-            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItem3, FileManager.Order.LITTLE_ENDIAN)); // 3. Production unit Upgrade count
-            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItem4, FileManager.Order.LITTLE_ENDIAN)); // 4. Production unit Upgrade count
-            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItem5, FileManager.Order.LITTLE_ENDIAN)); // 5. Production unit Upgrade count
+            writeToList(byteList, FileManager.toInt(b.productionUnits[0] != null ? b.productionUnits[0].id : 0, FileManager.Order.LITTLE_ENDIAN)); // 1. Production unit
+            writeToList(byteList, FileManager.toInt(b.productionUnits[1] != null ? b.productionUnits[1].id : 0, FileManager.Order.LITTLE_ENDIAN)); // 2. Production unit
+            writeToList(byteList, FileManager.toInt(b.productionUnits[2] != null ? b.productionUnits[2].id : 0, FileManager.Order.LITTLE_ENDIAN)); // 3. Production unit
+            writeToList(byteList, FileManager.toInt(b.productionUnits[3] != null ? b.productionUnits[3].id : 0, FileManager.Order.LITTLE_ENDIAN)); // 4. Production unit
+            writeToList(byteList, FileManager.toInt(b.productionUnits[4] != null ? b.productionUnits[4].id : 0, FileManager.Order.LITTLE_ENDIAN)); // 5. Production unit
+            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItems[0], FileManager.Order.LITTLE_ENDIAN)); // 1. Production unit Upgrade count
+            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItems[1], FileManager.Order.LITTLE_ENDIAN)); // 2. Production unit Upgrade count
+            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItems[2], FileManager.Order.LITTLE_ENDIAN)); // 3. Production unit Upgrade count
+            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItems[3], FileManager.Order.LITTLE_ENDIAN)); // 4. Production unit Upgrade count
+            writeToList(byteList, FileManager.toInt(b.productionUnitUpgradeItems[4], FileManager.Order.LITTLE_ENDIAN)); // 5. Production unit Upgrade count
             writeToList(byteList, FileManager.toInt(b.HP, FileManager.Order.LITTLE_ENDIAN)); // HP
             writeToList(byteList, FileManager.toInt(b.teamColor.colorID, FileManager.Order.LITTLE_ENDIAN)); // Team color
             writeToList(byteList, FileManager.toInt(b.hasSatelliteProtection ? 1 : 0, FileManager.Order.LITTLE_ENDIAN)); // Satellite protection
@@ -119,13 +119,12 @@ public class ExportManager {
 
         writeToList(byteList, MAP_HEADER); //Header
         writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Screen vision X
-        writeToList(byteList, new byte[]{0}); //Offset
+        writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Offset
         writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Screen vision Y
-        writeToList(byteList, new byte[]{0}); //Offset
+        writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN)); //Offset
 
-        writeToList(byteList, FileManager.toInt(Main.renderImgWidth32 << 8, FileManager.Order.BIG_ENDIAN));
-        writeToList(byteList, FileManager.toInt(Main.renderImgHeight32 << 8, FileManager.Order.BIG_ENDIAN));
-        writeToList(byteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN));
+        writeToList(byteList, FileManager.toInt(Level.renderImgWidth32, FileManager.Order.LITTLE_ENDIAN)); //Map width
+        writeToList(byteList, FileManager.toInt(Level.renderImgHeight32, FileManager.Order.LITTLE_ENDIAN)); //Map height
 
         //Main data
         MapManager.Tile[][] tiles = MapManager.tiles;
@@ -174,12 +173,12 @@ public class ExportManager {
         ArrayList<Byte> tmiByteList = new ArrayList<>();
 
         //Header
-        writeToList(tmiByteList, FileManager.toShort((short) Main.renderImgWidth32, FileManager.Order.LITTLE_ENDIAN));
-        writeToList(tmiByteList, FileManager.toShort((short) Main.renderImgHeight32, FileManager.Order.LITTLE_ENDIAN));
+        writeToList(tmiByteList, FileManager.toShort((short) Level.renderImgWidth32, FileManager.Order.LITTLE_ENDIAN));
+        writeToList(tmiByteList, FileManager.toShort((short) Level.renderImgHeight32, FileManager.Order.LITTLE_ENDIAN));
 
         //Data
-        for (int y = 0; y < Main.renderImgHeight32; y++) {
-            for (int x = 0; x < Main.renderImgWidth32; x++) {
+        for (int y = 0; y < Level.renderImgHeight32; y++) {
+            for (int x = 0; x < Level.renderImgWidth32; x++) {
                 writeToList(tmiByteList, FileManager.toShort((short) 0, FileManager.Order.LITTLE_ENDIAN));
             }
         }

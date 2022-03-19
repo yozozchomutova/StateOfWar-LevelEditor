@@ -14,6 +14,12 @@ public class MapManager {
         }
     }
 
+    public static void placeBuilding(int x, int y) {
+        try {
+            tiles[x][y].placeBuilding();
+        } catch (ArrayIndexOutOfBoundsException ignored) {}
+    }
+
     public static class Tile {
         public boolean placedBuilding;
         public boolean groundForbidden;

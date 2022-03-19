@@ -32,8 +32,8 @@ public class EndlessThread extends Thread{
                 newCamX = Math.max(0, newCamX);
                 newCamY = Math.max(0, newCamY);
 
-                Camera.x = Math.min(newCamX, Main.renderImgWidth - Main.frame.getWidth());
-                Camera.y = Math.min(newCamY, Main.renderImgHeight - Main.frame.getHeight());
+                Camera.x = Math.min(newCamX, Level.renderImgWidth - Main.frame.getWidth());
+                Camera.y = Math.min(newCamY, Level.renderImgHeight - Main.frame.getHeight());
             }
 
             //Move window bars
@@ -47,7 +47,10 @@ public class EndlessThread extends Thread{
                     wb.window.setLocation(newX, newY);
 
                     if (wb.window instanceof JFrame) {
-                        ((JFrame) wb.window).setExtendedState(0);
+                        JFrame frame = (JFrame) wb.window;
+
+                        if (frame.getExtendedState() != 0)
+                            frame.setExtendedState(0);
                     }
 
                     break;
@@ -58,8 +61,10 @@ public class EndlessThread extends Thread{
             Main.lastMouseY = mouseY;
 
             //Update surface jlabel
-            Main.surfaceRenderer.setBounds(-Camera.x, -Camera.y + WindowBar.BAR_HEIGHT, Main.renderImgWidth, Main.renderImgHeight);
+            Main.surfaceRenderer.setBounds(-Camera.x, -Camera.y + WindowBar.BAR_HEIGHT, Level.renderImgWidth, Level.renderImgHeight);
 
+            //Update #DEBUG# memory profiler
+            Main.memoryProfiler.setText("<html>Memory Total: " + (int)(Runtime.getRuntime().maxMemory()/1024f) + "<br/>Free memory: " + (int)(Runtime.getRuntime().freeMemory()/1024f) + "<br/>Usage: " + (int)((float)(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (float)Runtime.getRuntime().maxMemory() * 100f) + "%</html>");
         }
     }
 }

@@ -9,7 +9,9 @@ import java.util.Random;
 
 public class EdgeGenerator {
 
-    public void Generate(MapManager.Tile[][] tiles, Color[][] resultPixels) {
+    public static void generate(/*Color[][] resultPixels*/) {
+        MapManager.Tile[][] tiles = MapManager.tiles;
+
         for (int y = 1; y < tiles[0].length-1; y++) {
             for (int x = 1; x < tiles.length-1; x++) {
                 if (!tiles[x][y].tileReplaced) {
@@ -23,19 +25,23 @@ public class EdgeGenerator {
                     if (    !tiles[x-1][y-1].groundForbidden && !tiles[x  ][y-1].groundForbidden && !tiles[x+1][y-1].groundForbidden &&
                             tiles[x-1][y  ].groundForbidden && tiles[x  ][y  ].groundForbidden && tiles[x+1][y  ].groundForbidden &&
                             tiles[x-1][y+1].groundForbidden && tiles[x  ][y+1].groundForbidden && tiles[x+1][y+1].groundForbidden) {
-                        DrawIntoPixels(x, y, tiles, resultPixels, Piece.RIGHT_UpSide);
+                        Level.mapObjects.add(new MapObject(MapObject.BiomeCategory.SNOW.RIGHT_UpSide, x*32, y*32));
+                        //DrawIntoPixels(x, y, tiles, resultPixels, Piece.RIGHT_UpSide);
                     } else if (    tiles[x-1][y-1].groundForbidden && tiles[x  ][y-1].groundForbidden && tiles[x+1][y-1].groundForbidden &&
                             tiles[x-1][y  ].groundForbidden && tiles[x  ][y  ].groundForbidden && tiles[x+1][y  ].groundForbidden &&
                             !tiles[x-1][y+1].groundForbidden && !tiles[x  ][y+1].groundForbidden && !tiles[x+1][y+1].groundForbidden) {
-                        DrawIntoPixels(x, y, tiles, resultPixels, Piece.RIGHT_DownSide);
+                        Level.mapObjects.add(new MapObject(MapObject.BiomeCategory.SNOW.RIGHT_DownSide, x*32, y*32));
+                        //DrawIntoPixels(x, y, tiles, resultPixels, Piece.RIGHT_DownSide);
                     } else if (    tiles[x-1][y-1].groundForbidden && tiles[x  ][y-1].groundForbidden && !tiles[x+1][y-1].groundForbidden &&
                             tiles[x-1][y  ].groundForbidden && tiles[x  ][y  ].groundForbidden && !tiles[x+1][y  ].groundForbidden &&
                             tiles[x-1][y+1].groundForbidden && tiles[x  ][y+1].groundForbidden && !tiles[x+1][y+1].groundForbidden) {
-                        DrawIntoPixels(x, y, tiles, resultPixels, Piece.UP_RightSide);
+                        Level.mapObjects.add(new MapObject(MapObject.BiomeCategory.SNOW.UP_RightSide, x*32, y*32));
+                        //DrawIntoPixels(x, y, tiles, resultPixels, Piece.UP_RightSide);
                     } else if (    !tiles[x-1][y-1].groundForbidden && tiles[x  ][y-1].groundForbidden && tiles[x+1][y-1].groundForbidden &&
                             !tiles[x-1][y  ].groundForbidden && tiles[x  ][y  ].groundForbidden && tiles[x+1][y  ].groundForbidden &&
                             !tiles[x-1][y+1].groundForbidden && tiles[x  ][y+1].groundForbidden && tiles[x+1][y+1].groundForbidden) {
-                        DrawIntoPixels(x, y, tiles, resultPixels, Piece.UP_LeftSide);
+                        Level.mapObjects.add(new MapObject(MapObject.BiomeCategory.SNOW.UP_LeftSide, x*32, y*32));
+                        //DrawIntoPixels(x, y, tiles, resultPixels, Piece.UP_LeftSide);
                     }
                 }
             }

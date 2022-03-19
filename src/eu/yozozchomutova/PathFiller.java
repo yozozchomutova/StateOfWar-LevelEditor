@@ -11,7 +11,7 @@ public class PathFiller {
     public static boolean[][] startPathing(int startX, int startY) {
         MapManager.Tile[][] tiles = MapManager.tiles;
 
-        extendedPoints = new boolean[Main.renderImgWidth32][Main.renderImgHeight32];
+        extendedPoints = new boolean[Level.renderImgWidth32][Level.renderImgHeight32];
         extendingPoints = new ArrayList<>();
 
         extendedPoints[startX][startY] = true;
@@ -28,12 +28,12 @@ public class PathFiller {
                 }
 
                 //Down
-                if (point.y != Main.renderImgHeight32-1) {
+                if (point.y != Level.renderImgHeight32-1) {
                     expand(tiles, point.x, point.y, 0, 1);
                 }
 
                 //Right
-                if (point.x != Main.renderImgWidth32-1) {
+                if (point.x != Level.renderImgWidth32-1) {
                     expand(tiles, point.x, point.y, 1, 0);
                 }
 
